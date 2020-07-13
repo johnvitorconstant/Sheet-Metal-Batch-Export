@@ -1,0 +1,297 @@
+Option Explicit
+Dim swApp As SldWorks.SldWorks
+Dim swModel As ModelDoc2
+
+Dim swPart As PartDoc
+Dim swComp As SldWorks.Component2
+Dim swAssy As SldWorks.AssemblyDoc
+
+Dim vComps As Variant
+Dim exportar As Variant
+
+Dim i As Integer
+
+Dim NovoDesenho As Variant
+Dim NomeRecurso As String
+Dim NomeArquivo As String
+Dim NomeArquivoWOext As String
+Dim EnderecoArquivo As String
+Dim EnderecoAquivoWOext As String
+Dim NomeEspessura As String
+Dim ValorEspessura As String
+Dim NomeMaterial As String
+Dim NomeArea As String
+Dim NomeAreaQuadrada As String
+Dim Detalhamento As String
+Dim TipoMaterial As String
+Dim Diametro As String
+Dim QTD As Integer
+
+Dim swCustPropMgr As SldWorks.CustomPropertyManager
+Dim swCustPropMgrDefault As SldWorks.CustomPropertyManager
+Dim textexp As String
+
+Dim PastaDaPecaDWG As String
+Dim CaminhoDaPecaDWG As String 'tem a peça junto
+Dim PastaDaMontagem As String
+Dim estadoexport As Integer
+
+Dim Desenho As DrawingDoc
+Dim FolhaAtual As Sheet
+Dim boolstatus As Boolean
+Dim MatrizQtd As Variant
+Dim Caixa As Double
+Dim NomePropriedadeQTD As String
+Dim TempoInicial As Single
+Dim TempoFinal As Single
+Dim DeltaT As Single
+Dim ContMatriz As Integer
+Dim ContColuna As Integer
+
+
+
+
+
+Sub main()
+    
+    'Dim swCustPropMgr As SldWorks.CustomPropertyManager
+    
+    Set swApp = Application.SldWorks
+    Set swModel = swApp.ActiveDoc
+    Set swAssy = swModel
+    
+    
+    
+    estadoexport = InputBox("0 = Não exportar dwg  " + vbCrLf + "1 = exportar dwg", "Exportar dwg", 0)
+    TempoInicial = Timer
+    If estadoexport = 1 Then
+    Set Desenho = swApp.NewDocument("C:\ProgramData\SOLIDWORKS\SOLIDWORKS 2018\templates\Desenho.drwdot", 12, 0.21, 0.297) 'modify to your template
+    Set FolhaAtual = swApp.ActiveDoc.GetCurrentSheet
+    boolstatus = FolhaAtual.SetScale(1, 1, False, False)
+    End If
+    
+    
+    vComps = swAssy.GetComponents(False)
+    ReDim MatrizTitulo(UBound(vComps))
+    
+    For i = 0 To UBound(vComps)
+    Set swComp = vComps(i)
+    If swComp.GetSuppression = swComponentFullyResolved Then
+    Set swModel = swComp.GetModelDoc2
+    MatrizTitulo(i) = swModel.GetTitle
+    End If
+    Next i
+   
+    ContarDuplicada (MatrizTitulo) 'Return MatrizQTD
+    
+
+    
+    
+    
+    For i = 0 To UBound(vComps)
+        
+        Set swComp = vComps(i)
+
+        
+        
+        If swComp.GetSuppression = swComponentFullyResolved Then
+
+
+            Set swModel = swComp.GetModelDoc2
+            TraverseFeatures swModel.FirstFeature, True
+            
+            NomeArquivo = swModel.GetTitle
+            NomeArquivoWOext = Left(NomeArquivo, Len(NomeArquivo) - 7)
+            EnderecoArquivo = swModel.GetPathName
+            EnderecoAquivoWOext = Left(EnderecoArquivo, Len(EnderecoArquivo) - 7)
+            
+            NomePropriedadeQTD = "Qtd - " & swAssy.GetTitle
+            QTD = procv(NomeArquivo, MatrizQtd)
+            
+            NomeEspessura = """" & "SW-Espessura da Chapa metálica@@@" & NomeRecurso & "@" & NomeArquivo & """"
+            updateProperty swModel, "Espessura da Chapa", NomeEspessura
+            Set swCustPropMgr = swModel.Extension.CustomPropertyManager("")
+            Set swCustPropMgrDefault = swModel.Extension.CustomPropertyManager("Valor predeterminado")
+            swCustPropMgr.Get2 "Espessura da Chapa", textexp, ValorEspessura
+            
+            
+            NomeMaterial = """" & "SW-Material@" & NomeArquivo & """"
+            updateProperty swModel, "Material", NomeMaterial
+            
+            NomeArea = """" & "SW-Área da Caixa delimitadora-Blanque@@@" & NomeRecurso & "@" & NomeArquivo & """"
+            updateProperty swModel, "Area", NomeArea
+            
+            NomeAreaQuadrada = """" & "SW-Área da Caixa delimitadora@@@" & NomeRecurso & "@" & NomeArquivo & """"
+            updateProperty swModel, "Area Quadrada", NomeAreaQuadrada
+            
+            updateProperty swModel, NomePropriedadeQTD, QTD
+
+
+            If IsNumeric(ValorEspessura) = False Then
+            
+            NomeEspessura = """" & "SW-Sheet Metal Thickness@@@" & NomeRecurso & "@" & NomeArquivo & """"
+            updateProperty swModel, "Espessura da Chapa", NomeEspessura
+            swCustPropMgr.Get2 "Espessura da Chapa", textexp, ValorEspessura
+            
+            NomeArea = """" & "SW-Bounding Box Area-Blank@@@" & NomeRecurso & "@" & NomeArquivo & """"
+            updateProperty swModel, "Area", NomeArea
+            
+            NomeAreaQuadrada = """" & "SW-Bounding Box Area@@@" & NomeRecurso & "@" & NomeArquivo & """"
+            updateProperty swModel, "Area Quadrada", NomeAreaQuadrada
+            
+
+            
+            'debug.Print "2º if"
+            End If 'If IsNumeric(ValorEspessura) = False Then
+            
+            If IsNumeric(ValorEspessura) = False Then
+            NomeEspessura = """" & "Espessura@" & "@" & NomeArquivo & """"
+            updateProperty swModel, "Espessura da Chapa", NomeEspessura
+            updateProperty swModel, "Area", ""
+            updateProperty swModel, "Area Quadrada", ""
+            swCustPropMgr.Get2 "Espessura da Chapa", textexp, ValorEspessura
+
+            'debug.Print "3º if"
+            End If 'If IsNumeric(ValorEspessura) = False Then
+            
+            If IsNumeric(ValorEspessura) = False Then
+            NomeEspessura = """" & "Thickness@" & "@" & NomeArquivo & """"
+            updateProperty swModel, "Espessura da Chapa", NomeEspessura
+            swCustPropMgr.Get2 "Espessura da Chapa", textexp, ValorEspessura
+
+            'debug.Print "4º if"
+            End If 'If IsNumeric(ValorEspessura) = False Then
+            
+            If IsNumeric(ValorEspessura) = False Then
+            NomeEspessura = ""
+            updateProperty swModel, "Espessura da Chapa", NomeEspessura
+            swCustPropMgr.Get2 "Espessura da Chapa", textexp, ValorEspessura
+
+            'debug.Print "5º if"
+            End If 'If IsNumeric(ValorEspessura) = False Then
+        
+
+    
+        End If 'If swComp.GetSuppression = swComponentFullyResolved Then
+
+
+        
+    If (IsNumeric(ValorEspessura) = True) And (estadoexport = 1) Then
+    
+    PastaDaPecaDWG = Left(swAssy.GetPathName, Len(swAssy.GetPathName) - 7) + " dwg\" + ValorEspessura + "mm"
+    PastaDaMontagem = Left(swAssy.GetPathName, Len(swAssy.GetPathName) - 7) + " dwg\"
+    CaminhoDaPecaDWG = PastaDaPecaDWG + "\" + NomeArquivoWOext + ".dwg"
+
+    'debug.Print PastaDaPecaDWG
+    'debug.Print CaminhoDaPecaDWG
+    'debug.Print PastaDaMontagem
+    
+    
+    If Dir(PastaDaMontagem, vbDirectory) = "" Then MkDir PastaDaMontagem
+    If Dir(PastaDaPecaDWG, vbDirectory) = "" Then MkDir PastaDaPecaDWG
+
+    exportar = swModel.ExportFlatPatternView(CaminhoDaPecaDWG, 1)
+    
+    End If 'IsNumeric(ValorEspessura) = True Then
+    
+
+    Next i
+
+ 
+ 
+
+
+TempoFinal = Timer
+DeltaT = TempoFinal - TempoInicial
+Debug.Print TempoInicial
+Debug.Print TempoFinal
+Debug.Print DeltaT
+Debug.Print i
+End Sub
+
+Sub updateProperty(swModel As SldWorks.ModelDoc2, propriedade_nome As String, propriedade_valor)
+    On Error Resume Next
+    Dim cpm As CustomPropertyManager
+    Set cpm = swModel.Extension.CustomPropertyManager("")
+    cpm.Add3 propriedade_nome, swCustomInfoText, propriedade_valor, 1
+    cpm.Delete "Detalhamento"
+    
+    
+   ' Dim cpmd As CustomPropertyManager
+    'Set cpmd = swModel.Extension.CustomPropertyManager("Valor Predeterminado")
+    'cpmd.Delete "Tipo de Material"
+    'cpmd.Delete "Descrição"
+
+End Sub
+
+Sub TraverseFeatures(ByVal thisFeat As Feature, ByVal isTopLevel As Boolean)
+    'Dim nomeFeature As String
+    While Not thisFeat Is Nothing
+            
+        If Not isTopLevel Then
+                
+            If thisFeat.GetTypeName = "CutListFolder" Then
+                NomeRecurso = thisFeat.Name
+                ''debug.Print NomeRecurso
+
+                    
+            End If
+                
+        End If
+            
+        Dim subfeat As SldWorks.Feature
+            
+        Set subfeat = thisFeat.GetFirstSubFeature
+            
+        While Not subfeat Is Nothing
+                
+            TraverseFeatures subfeat, False
+                
+            Set subfeat = subfeat.GetNextSubFeature
+                
+        Wend
+            
+        If isTopLevel Then
+                
+            Set thisFeat = thisFeat.GetNextFeature
+                
+        Else
+                
+            Set thisFeat = Nothing
+                
+        End If
+            
+    Wend
+    Exit Sub
+End Sub
+
+
+Sub ContarDuplicada(MatrizB As Variant) 'asd
+    Dim dict As Object
+    Dim j As Long, v As Variant
+    ReDim MatrizQtd(UBound(MatrizB), 1) As Variant
+    Set dict = CreateObject("Scripting.Dictionary")
+    For j = LBound(MatrizB) To UBound(MatrizB)
+        If dict.Exists(MatrizB(j)) Then
+            dict.Item(MatrizB(j)) = dict.Item(MatrizB(j)) + 1
+        Else
+            dict.Add MatrizB(j), 1
+        End If
+    Next j
+    j = 0
+    For Each v In dict.Keys
+        MatrizQtd(j, 0) = v
+        MatrizQtd(j, 1) = dict.Item(v)
+        j = j + 1
+    Next v
+
+End Sub
+
+Function procv(entrada As String, Tabela As Variant)
+Dim l As Integer
+For l = 0 To UBound(Tabela)
+If Tabela(l, 0) = entrada Then
+procv = Tabela(l, 1)
+End If
+Next l
+End Function
